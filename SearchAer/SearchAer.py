@@ -14,11 +14,12 @@ import pyautogui
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 
+SITES_PESQUISA = {'SommaAviation': 'https://loja.sommaaviation.com.br/'}
 
-SITES_PESQUISA = {'Fibraer': 'https://loja.fibraer.com.br/',
+'''SITES_PESQUISA = {'Fibraer': 'https://loja.fibraer.com.br/',
                   'GlobalParts': 'https://www.globalp.com.br/produtos/',
                   'BarataAviation': 'https://www.barataaviation.com.br/',
-                  'SommaAviation': 'https://loja.sommaaviation.com.br/'}
+                  'SommaAviation': 'https://loja.sommaaviation.com.br/'}'''
 
 """_summary_
 
@@ -27,6 +28,12 @@ SITES_PESQUISA = {'Fibraer': 'https://loja.fibraer.com.br/',
     # trata_nomes não funciona, aparentemente retorna a mesma coisa da entrada
     # analisar melhor o segura para implementar o EC corretamente
     # Mudar a ordem de chamada do navegador com o o for do pn
+    # Eliminar o pyautogui(enter) do barata aviation
+    # Arrumar os prints
+    # Avisar qual PN encontrou
+    # Criar uma planilha com pns encontrados e pns que deram erro (pensar melhor)
+    # implantar tqdm
+    # Criar prints após o de pesquisando no site x pra descever melhor o andamento do processo (tqdm?)
     """
 
 
@@ -43,7 +50,7 @@ class OrganizaArquivos:
     Realiza todas as necessidades de criar, gerenciar e tratar arquivos.
     """
 
-    def cria_pasta(self, li_pn):
+    def cria_pasta(self, li_pn, pn):
         """
         Analisa se já existe a pasta nomeada com o PN, caso não encontre, cria uma pasta nova para o PN.
         Args:
@@ -97,11 +104,10 @@ class Navegador:
     """
     navegador = webdriver.Chrome(ChromeDriverManager().install())
     segura_site = ui.WebDriverWait(navegador, 30)
-    segura_pn = ui.WebDriverWait(navegador, 1)
+    segura_pn = ui.WebDriverWait(navegador, 5)
 
     def __init__(self, site):
         self.site = site
-        OrganizaArquivos().cria_pasta(li_pn)
         self.seleciona_sites()
 
     def seleciona_sites(self):
@@ -125,11 +131,13 @@ class Fibraer(Navegador):
     def __init__(self, site):
         self.site = site
         self.abre_navegador()
-        self.busca_pn(pn)
+        for pn in li_pn['PN']:
+            OrganizaArquivos().cria_pasta(li_pn, pn)
+            self.busca_pn(pn)
 
     def abre_navegador(self):
         self.navegador.get(SITES_PESQUISA[self.site])
-        print(f'Pesquisando {pn}...')
+        print(f'Abrindo {self.site}...')
         try:
             self.segura_site.until(
                 lambda driver: driver.find_element(*self.submit_pn))
@@ -173,11 +181,13 @@ class GlobalParts(Navegador):
     def __init__(self, site):
         self.site = site
         self.abre_navegador()
-        self.busca_pn(pn)
+        for pn in li_pn['PN']:
+            OrganizaArquivos().cria_pasta(li_pn, pn)
+            self.busca_pn(pn)
 
     def abre_navegador(self):
         self.navegador.get(SITES_PESQUISA[self.site])
-        print(f'Pesquisando {pn}...')
+        print(f'Abrindo {self.site}...')
         try:
             self.segura_site.until(
                 lambda driver: driver.find_element(*self.submit_pn))
@@ -214,7 +224,7 @@ class GlobalParts(Navegador):
 
 class BarataAviation(Navegador):
     insert_pn = (By.NAME, 's')
-    submit_pn = (By.CLASS_NAME, 'aws-search-btn aws-form-btn')
+    submit_pn = (By.XPATH, '//*[@id="aws_widget-2"]/div[2]/form/div[2]')
     back_without_find = (By.CSS_SELECTOR, 'p[class="woocommerce-info"]')
     pn_found = (By.CLASS_NAME,
                 'woocommerce-ordering')
@@ -222,24 +232,27 @@ class BarataAviation(Navegador):
     def __init__(self, site):
         self.site = site
         self.abre_navegador()
-        self.busca_pn(pn)
+        for pn in li_pn['PN']:
+            OrganizaArquivos().cria_pasta(li_pn, pn)
+            self.busca_pn(pn)
 
     def abre_navegador(self):
         self.navegador.get(SITES_PESQUISA[self.site])
-        print(f'Pesquisando {pn}...')
+        print(f'Abrindo {self.site}...')
         try:
             self.segura_site.until(
                 lambda driver: driver.find_element(*self.submit_pn))
         except TimeoutException:
-            print("Loading took too much time!")
+            print(f'Loading {site} took too much time!')
 
     def busca_pn(self, pn):
         self.navegador.find_element(*self.insert_pn).send_keys(pn)
-        self.navegador.find_element(*self.submit_pn).click()
+        pyautogui.press('enter')
         try:
-            self.segura_pn.until(
-                EC.presence_of_element_located(*self.back_without_find))
+            myElem = ui.WebDriverWait(self.navegador, 10).until(EC.presence_of_element_located(
+                (By.CSS_SELECTOR, 'p[class="woocommerce-info"]')))
             file_name = OrganizaArquivos().trata_nomes(pn, site)
+            sleep(2)
             pyautogui.screenshot(
                 imageFilename=file_name, region=(1280, 0, 1280, 1440))
             sleep(1)
@@ -249,9 +262,10 @@ class BarataAviation(Navegador):
                 lambda driver: driver.find_element(*self.submit_pn))
         except TimeoutException:
             try:
-                self.segura_pn.until(
-                    EC.presence_of_element_located(*self.pn_found))
+                myElem = ui.WebDriverWait(self.navegador, 10).until(EC.presence_of_element_located(
+                    (By.CLASS_NAME, 'woocommerce-ordering')))
                 file_name = OrganizaArquivos().trata_nomes(pn, site)
+                sleep(2)
                 pyautogui.screenshot(
                     imageFilename=file_name, region=(1280, 0, 1280, 1440))
                 sleep(1)
@@ -261,7 +275,7 @@ class BarataAviation(Navegador):
                     lambda driver: driver.find_element(*self.submit_pn))
                 print('Encontrei')
             except TimeoutException:
-                print("Loading took too much time!")
+                print(f'Loading {pn} site took too much time!')
                 pass
 
 
@@ -275,11 +289,13 @@ class SommaAviation(Navegador):
     def __init__(self, site):
         self.site = site
         self.abre_navegador()
-        self.busca_pn(pn)
+        for pn in li_pn['PN']:
+            OrganizaArquivos().cria_pasta(li_pn, pn)
+            self.busca_pn(pn)
 
     def abre_navegador(self):
         self.navegador.get(SITES_PESQUISA[self.site])
-        print(f'Pesquisando {pn}...')
+        print(f'Abrindo {self.site}...')
         try:
             self.segura_site.until(
                 lambda driver: driver.find_element(*self.submit_pn))
@@ -291,7 +307,7 @@ class SommaAviation(Navegador):
         self.navegador.find_element(*self.submit_pn).click()
         try:
             self.segura_pn.until(
-                EC.presence_of_element_located(*self.back_without_find))
+                lambda driver: driver.find_element(*self.back_without_find))
             file_name = OrganizaArquivos().trata_nomes(pn, site)
             pyautogui.screenshot(
                 imageFilename=file_name, region=(1280, 0, 1280, 1440))
@@ -301,7 +317,7 @@ class SommaAviation(Navegador):
         except TimeoutException:
             try:
                 self.segura_pn.until(
-                    EC.presence_of_element_located(*self.pn_found))
+                    lambda driver: driver.find_element(*self.pn_found))
                 file_name = OrganizaArquivos().trata_nomes(pn, site)
                 pyautogui.screenshot(
                     imageFilename=file_name, region=(1280, 0, 1280, 1440))
@@ -316,5 +332,4 @@ class SommaAviation(Navegador):
 
 li_pn = df_dados()
 for site in SITES_PESQUISA:
-    for pn in li_pn['PN']:
-        Navegador(site)
+    Navegador(site)
